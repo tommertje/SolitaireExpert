@@ -501,8 +501,11 @@ public class Card : MonoBehaviour {
         } else if (newHandPlacePosition != Vector3.zero) {
 			return cardsBelow.Count == 0 && handPlace.IsHandPlaceEmpty(newHandPlacePosition);
 		} else if (newColumnPosition != Vector3.zero) {
-            return rank == Rank.KING && newColumn.GetComponent<Column>().IsColumnEmpty();
-        } else {
+ // bvdb 2023-06-20 you can drop any card
+ //         return rank == Rank.KING && newColumn.GetComponent<Column>().IsColumnEmpty();
+            return newColumn.GetComponent<Column>().IsColumnEmpty();
+        }
+        else {
             return false;
         }
 	}
