@@ -1,0 +1,116 @@
+name: Unity Store Builds
+
+on:
+  workflow_dispatch:
+    inputs:
+      upload_ios_to_testflight:
+        description: "Upload iOS build to TestFlight"
+        required: false
+        default: "false"
+      upload_android_to_internal:
+        description: "Upload Android AAB to Google Play internal track"
+        required: false
+        default: "false"
+
+jobs:
+  android:
+    name: Android AAB
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build Android
+        uses: game-ci/unity-builder@v4
+        env:
+          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+        with:
+          targetPlatform: Android
+          unityVersion: 6000.4.1f1
+
+      - name: Upload Android artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-build
+          path: build/Android
+
+      - name: Upload to Google Play internal track
+        if: ${{ github.event.inputs.upload_android_to_internal == 'true' }}
+        uses: r0adkll/upload-google-play@v1
+        with:
+          serviceAccountJsonPlainText: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
+          packageName: com.SolitaireExperts.SolitaireExpert
+          releaseFiles: build/Android/**/*.aab
+          track: internal
+          status: completed
+
+  ios:
+    name: iOS Build (macOS)
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build iOS
+        uses: game-ci/unity-builder@v4
+        env:
+          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+        with:
+          targetPlatform: iOS
+          unityVersion: 6000.4.1f1
+
+      - name: Upload iOS artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-xcode-project
+          path: build/iOS
+
+      - name: Archive and export IPA
+        if: ${{ github.event.inputs.upload_ios_to_testflight == 'true' }}
+        working-directory: build/iOS
+        run: |
+          xcodebuild -project Unity-iPhone.xcodeproj -scheme Unity-iPhone -configuration Release -archivePath build/Unity-iPhone.xcarchive archive
+          xcodebuild -exportArchive -archivePath build/Unity-iPhone.xcarchive -exportPath build/export -exportOptionsPlist ../../ci/ios/ExportOptions.plist
+
+      - name: Upload IPA artifact
+        if: ${{ github.event.inputs.upload_ios_to_testflight == 'true' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-ipa
+          path: build/iOS/build/export
+
+      - name: Upload to TestFlight
+        if: ${{ github.event.inputs.upload_ios_to_testflight == 'true' }}
+        uses: apple-actions/upload-testflight-build@v1
+        with:
+          app-path: build/iOS/build/export
+          issuer-id: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          api-key-id: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
+          api-private-key: ${{ secrets.APP_STORE_CONNECT_API_PRIVATE_KEY }}
+
+  windows:
+    name: Windows Standalone
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build Windows
+        uses: game-ci/unity-builder@v4
+        env:
+          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+        with:
+          targetPlatform: StandaloneWindows64
+          unityVersion: 6000.4.1f1
+
+      - name: Upload Windows artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-build
+          path: build/StandaloneWindows64
