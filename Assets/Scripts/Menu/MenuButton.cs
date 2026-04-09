@@ -15,6 +15,8 @@ public class MenuButton : MonoBehaviour
     {
         menuSlider = transform.GetChild(0).gameObject;
         menuSliderAnim = menuSlider.GetComponent<Animator>();
+        menuSliderAnim.Play("SlideOut", 0, 0f);
+        menuCloser.SetActive(false);
     }
 
     private void OnMouseDown()

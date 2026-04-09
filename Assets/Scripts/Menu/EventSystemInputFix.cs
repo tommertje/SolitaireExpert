@@ -24,10 +24,7 @@ public static class EventSystemInputFix
 
     private static void EnsureInputSystemUIModule()
     {
-        EventSystem[] eventSystems = Object.FindObjectsByType<EventSystem>(
-            FindObjectsInactive.Include,
-            FindObjectsSortMode.None
-        );
+        EventSystem[] eventSystems = Object.FindObjectsByType<EventSystem>(FindObjectsInactive.Include);
 
         foreach (EventSystem eventSystem in eventSystems)
         {
