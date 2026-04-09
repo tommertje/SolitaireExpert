@@ -1,6 +1,9 @@
 ﻿using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+#if ENABLE_INPUT_SYSTEM
+using UnityEngine.InputSystem;
+#endif
 
 public class RulesScroll : MonoBehaviour
 {
@@ -26,7 +29,26 @@ public class RulesScroll : MonoBehaviour
 
     private float GetCurrentMouseZPosition()
     {
-        Vector3 origPosition = Camera.main.ScreenToWorldPoint(Input.mousePosition);
+        Vector3 origPosition = Camera.main.ScreenToWorldPoint(GetPointerScreenPosition());
         return origPosition.z;
+    }
+
+    private Vector3 GetPointerScreenPosition()
+    {
+#if ENABLE_INPUT_SYSTEM
+        if (Mouse.current != null)
+        {
+            return Mouse.current.position.ReadValue();
+        }
+
+        if (Touchscreen.current != null)
+        {
+            return Touchscreen.current.primaryTouch.position.ReadValue();
+        }
+
+        return Vector3.zero;
+#else
+        return Input.mousePosition;
+#endif
     }
 }

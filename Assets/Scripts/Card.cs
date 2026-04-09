@@ -2,6 +2,9 @@
 using UnityEngine;
 using System.Collections;
 using System.Collections.Generic;
+#if ENABLE_INPUT_SYSTEM
+using UnityEngine.InputSystem;
+#endif
 
 public enum Suit {
 	HEARTS,
@@ -458,9 +461,28 @@ public class Card : MonoBehaviour {
     }
 
 	private Vector3 GetCurrentMousePosition() {
-		Vector3 origPosition = Camera.main.ScreenToWorldPoint (Input.mousePosition);
+		Vector3 origPosition = Camera.main.ScreenToWorldPoint(GetPointerScreenPosition());
 		return new Vector3 (origPosition.x, mouseHeight, origPosition.z);
 	}
+
+    private Vector3 GetPointerScreenPosition()
+    {
+#if ENABLE_INPUT_SYSTEM
+        if (Mouse.current != null)
+        {
+            return Mouse.current.position.ReadValue();
+        }
+
+        if (Touchscreen.current != null)
+        {
+            return Touchscreen.current.primaryTouch.position.ReadValue();
+        }
+
+        return Vector3.zero;
+#else
+        return Input.mousePosition;
+#endif
+    }
 		
 	public Vector3 GetNiceDropPosition() {
 		if (cardsAbove.Count != 0) {
