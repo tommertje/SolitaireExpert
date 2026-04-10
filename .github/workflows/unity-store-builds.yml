@@ -93,6 +93,23 @@ jobs:
           Move-Item -Path $candidate.FullName -Destination $targetExe -Force
           Write-Host "Renamed $($candidate.Name) to SolitaireExpert.exe"
 
+          $expectedDataDir = Join-Path $buildDir "SolitaireExpert_Data"
+          if (Test-Path $expectedDataDir) {
+            Write-Host "Data folder already normalized."
+            exit 0
+          }
+
+          $dataCandidate = Get-ChildItem $buildDir -Directory |
+            Where-Object { $_.Name -like "*_Data" } |
+            Select-Object -First 1
+
+          if (-not $dataCandidate) {
+            throw "No Unity data folder (*_Data) found in $buildDir"
+          }
+
+          Move-Item -Path $dataCandidate.FullName -Destination $expectedDataDir -Force
+          Write-Host "Renamed $($dataCandidate.Name) to SolitaireExpert_Data"
+
       - name: Install Inno Setup
         run: choco install innosetup -y
 
