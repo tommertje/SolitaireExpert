@@ -6,6 +6,11 @@ public class highlightInitiation : MonoBehaviour {
     [SerializeField] Animator highlightCardSlider;
     [SerializeField] Animator menuSlider;
 
+    private void Start()
+    {
+        highlightCardSlider.Play("SlideOut", 0, 0f);
+    }
+
 	void OnMouseDown() {
 		SetVisibilityHighlightCards (true);
     }

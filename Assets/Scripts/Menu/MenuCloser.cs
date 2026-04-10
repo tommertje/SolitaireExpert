@@ -18,6 +18,7 @@ public class MenuCloser : MonoBehaviour
     {
         menuSliderAnim = menuSlider.GetComponent<Animator>();
         highlightSliderAnim = highlightSlider.GetComponent<Animator>();
+        menuCloseArea.SetActive(false);
     }
 
     // Update is called once per frame

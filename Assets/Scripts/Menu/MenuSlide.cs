@@ -1,6 +1,9 @@
 ﻿using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+#if ENABLE_INPUT_SYSTEM
+using UnityEngine.InputSystem;
+#endif
 
 public class MenuSlide : MonoBehaviour
 {
@@ -19,15 +22,34 @@ public class MenuSlide : MonoBehaviour
 
     void Update()
     {
+#if ENABLE_INPUT_SYSTEM
+        if (Touchscreen.current == null)
+        {
+            return;
+        }
+
+        var primaryTouch = Touchscreen.current.primaryTouch;
+        var phase = primaryTouch.phase.ReadValue();
+
+        if (phase == UnityEngine.InputSystem.TouchPhase.Began)
+        {
+            HandleTouchStart(primaryTouch.position.ReadValue().x);
+        }
+        else if (phase == UnityEngine.InputSystem.TouchPhase.Ended || phase == UnityEngine.InputSystem.TouchPhase.Canceled)
+        {
+            HandleTouchEnd(primaryTouch.position.ReadValue().x);
+        }
+#else
         if (Input.touches.Length > 0)
             Panel(Input.GetTouch(0));
+#endif
     }
 
     void Panel(Touch touch)
     {
         switch (touch.phase)
         {
-            case TouchPhase.Began:
+            case UnityEngine.TouchPhase.Began:
                 //Get the start position of touch.
 
                 startXPos = touch.position.x;
@@ -38,7 +60,7 @@ public class MenuSlide : MonoBehaviour
                     processTouch = true;
                 }
                 break;
-            case TouchPhase.Ended:
+            case UnityEngine.TouchPhase.Ended:
                 if (processTouch)
                 {
                     //Determine how far the finger was swiped.
@@ -63,5 +85,36 @@ public class MenuSlide : MonoBehaviour
             default:
                 return;
         }
+    }
+
+    private void HandleTouchStart(float xPosition)
+    {
+        startXPos = xPosition;
+        Debug.Log(startXPos);
+        processTouch = startXPos < leftEdge;
+    }
+
+    private void HandleTouchEnd(float xPosition)
+    {
+        if (!processTouch)
+        {
+            return;
+        }
+
+        float deltaX = xPosition - startXPos;
+
+        if (isExpanded && deltaX < -swipeDistance)
+        {
+            isExpanded = false;
+            sliderAnimator.Play("Slide");
+        }
+        else if (!isExpanded && deltaX > swipeDistance)
+        {
+            isExpanded = true;
+            sliderAnimator.Play("Entry");
+        }
+
+        startXPos = 0f;
+        processTouch = false;
     }
 }
