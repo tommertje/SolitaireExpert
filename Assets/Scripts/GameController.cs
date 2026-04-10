@@ -13,11 +13,30 @@ public class GameController : MonoBehaviour {
     [SerializeField] Undo undo;
     
     [SerializeField] private NewGameScreen newGame;
+    [SerializeField] private bool allowFullscreenToggle = true;
 
     private int numberOfFinalisedKings = 0;
 
 	void Start () {
 		NewGame ();
+    }
+
+    void Update()
+    {
+        if (!allowFullscreenToggle)
+        {
+            return;
+        }
+
+        bool f11Pressed = Input.GetKeyDown(KeyCode.F11);
+        bool altEnterPressed = (Input.GetKeyDown(KeyCode.Return) || Input.GetKeyDown(KeyCode.KeypadEnter)) &&
+                               (Input.GetKey(KeyCode.LeftAlt) || Input.GetKey(KeyCode.RightAlt));
+
+        if (f11Pressed || altEnterPressed)
+        {
+            Screen.fullScreenMode = Screen.fullScreen ? FullScreenMode.Windowed : FullScreenMode.FullScreenWindow;
+            Screen.fullScreen = !Screen.fullScreen;
+        }
     }
 
     public void NewGame()
