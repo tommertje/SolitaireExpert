@@ -78,20 +78,23 @@ jobs:
           $buildDir = "${{ github.workspace }}\build\StandaloneWindows64"
           $targetExe = Join-Path $buildDir "SolitaireExpert.exe"
           $targetDataDir = Join-Path $buildDir "SolitaireExpert_Data"
-          if (Test-Path $targetExe) {
-            Write-Host "Executable already normalized."
-            exit 0
-          }
 
-          $candidate = Get-ChildItem $buildDir -Filter *.exe |
+          $gameExe = Get-ChildItem $buildDir -Filter *.exe |
             Where-Object { $_.Name -ne "UnityCrashHandler64.exe" } |
             Select-Object -First 1
-
-          if (-not $candidate) {
+          if (-not $gameExe) {
             throw "No game executable found in $buildDir"
           }
 
-          $sourceDataDir = Join-Path $buildDir ("{0}_Data" -f [System.IO.Path]::GetFileNameWithoutExtension($candidate.Name))
+          if ($gameExe.Name -ne "SolitaireExpert.exe") {
+            Move-Item -Path $gameExe.FullName -Destination $targetExe -Force
+            Write-Host "Renamed $($gameExe.Name) to SolitaireExpert.exe"
+            $gameExe = Get-Item $targetExe
+          } else {
+            Write-Host "Executable already normalized."
+          }
+
+          $sourceDataDir = Join-Path $buildDir ("{0}_Data" -f [System.IO.Path]::GetFileNameWithoutExtension($gameExe.Name))
           if (Test-Path $sourceDataDir) {
             if (Test-Path $targetDataDir) {
               Remove-Item -Recurse -Force $targetDataDir
@@ -110,9 +113,6 @@ jobs:
               Write-Warning "No *_Data folder found to normalize."
             }
           }
-
-          Move-Item -Path $candidate.FullName -Destination $targetExe -Force
-          Write-Host "Renamed $($candidate.Name) to SolitaireExpert.exe"
 
       - name: Install Inno Setup
         run: choco install innosetup -y
