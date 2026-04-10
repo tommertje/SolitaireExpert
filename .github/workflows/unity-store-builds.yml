@@ -72,6 +72,27 @@ jobs:
           name: windows-build
           path: build/StandaloneWindows64
 
+      - name: Normalize executable name
+        shell: powershell
+        run: |
+          $buildDir = "${{ github.workspace }}\build\StandaloneWindows64"
+          $targetExe = Join-Path $buildDir "SolitaireExpert.exe"
+          if (Test-Path $targetExe) {
+            Write-Host "Executable already normalized."
+            exit 0
+          }
+
+          $candidate = Get-ChildItem $buildDir -Filter *.exe |
+            Where-Object { $_.Name -ne "UnityCrashHandler64.exe" } |
+            Select-Object -First 1
+
+          if (-not $candidate) {
+            throw "No game executable found in $buildDir"
+          }
+
+          Move-Item -Path $candidate.FullName -Destination $targetExe -Force
+          Write-Host "Renamed $($candidate.Name) to SolitaireExpert.exe"
+
       - name: Install Inno Setup
         run: choco install innosetup -y
 
