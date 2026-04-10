@@ -7,6 +7,8 @@ using UnityEngine.InputSystem;
 
 public class MenuSlide : MonoBehaviour
 {
+    [SerializeField] private bool allowSwipeToToggleMenu = false;
+
     //Process touch for panel display on if the touch is less than this threshold.
     private float leftEdge = Screen.width * 0.25f;
 
@@ -22,6 +24,11 @@ public class MenuSlide : MonoBehaviour
 
     void Update()
     {
+        if (!allowSwipeToToggleMenu)
+        {
+            return;
+        }
+
 #if ENABLE_INPUT_SYSTEM
         if (Touchscreen.current == null)
         {

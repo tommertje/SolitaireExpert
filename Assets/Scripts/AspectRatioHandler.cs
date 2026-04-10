@@ -7,6 +7,7 @@ public class AspectRatioHandler : MonoBehaviour
     [SerializeField] GameObject aspectRatio16_9;
     [SerializeField] GameObject aspectRatio18_9;
     [SerializeField] GameObject aspectRatio195_9;
+    [SerializeField] private float gameplayZoomMultiplier = 0.88f;
 
     // Start is called before the first frame update
     void Awake()
@@ -28,5 +29,8 @@ public class AspectRatioHandler : MonoBehaviour
             Camera.main.orthographicSize = 6.6f;
             Instantiate(aspectRatio16_9, new Vector3(0, 0, 0), Quaternion.identity);
         }
+
+        // Slight zoom-in so cards use more of the visible play area.
+        Camera.main.orthographicSize *= gameplayZoomMultiplier;
     }
 }
