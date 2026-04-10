@@ -9,14 +9,20 @@ public class MenuButton : MonoBehaviour
     Animator menuSliderAnim;
 
     [SerializeField] GameObject menuCloser;
+    [SerializeField] private float startupMenuHideSeconds = 3f;
+
+    private bool canOpenMenu;
 
     // Start is called before the first frame update
     void Start()
     {
         menuSlider = transform.GetChild(0).gameObject;
         menuSliderAnim = menuSlider.GetComponent<Animator>();
-        menuSliderAnim.Play("SlideOut", 0, 0f);
         menuCloser.SetActive(false);
+
+        menuSlider.SetActive(false);
+        canOpenMenu = false;
+        StartCoroutine(EnableMenuAfterStartupDelay());
     }
 
     private void OnMouseDown()
@@ -26,6 +32,11 @@ public class MenuButton : MonoBehaviour
 
     public void OpenMenu()
     {
+        if (!canOpenMenu)
+        {
+            return;
+        }
+
         if (menuSliderAnim.GetCurrentAnimatorStateInfo(0).IsName("SlideOut"))
         {
             menuSliderAnim.Play("SlideIn");
@@ -41,5 +52,17 @@ public class MenuButton : MonoBehaviour
             menuSliderAnim.Play("SlideIn");
             menuCloser.SetActive(true);
         }
+    }
+
+    private IEnumerator EnableMenuAfterStartupDelay()
+    {
+        if (startupMenuHideSeconds > 0f)
+        {
+            yield return new WaitForSeconds(startupMenuHideSeconds);
+        }
+
+        menuSlider.SetActive(true);
+        menuSliderAnim.Play("SlideOut", 0, 0f);
+        canOpenMenu = true;
     }
 }
