@@ -77,6 +77,7 @@ jobs:
         run: |
           $buildDir = "${{ github.workspace }}\build\StandaloneWindows64"
           $targetExe = Join-Path $buildDir "SolitaireExpert.exe"
+          $targetDataDir = Join-Path $buildDir "SolitaireExpert_Data"
           if (Test-Path $targetExe) {
             Write-Host "Executable already normalized."
             exit 0
@@ -90,25 +91,28 @@ jobs:
             throw "No game executable found in $buildDir"
           }
 
+          $sourceDataDir = Join-Path $buildDir ("{0}_Data" -f [System.IO.Path]::GetFileNameWithoutExtension($candidate.Name))
+          if (Test-Path $sourceDataDir) {
+            if (Test-Path $targetDataDir) {
+              Remove-Item -Recurse -Force $targetDataDir
+            }
+            Move-Item -Path $sourceDataDir -Destination $targetDataDir -Force
+            Write-Host "Renamed $([System.IO.Path]::GetFileName($sourceDataDir)) to SolitaireExpert_Data"
+          } else {
+            $fallbackDataDir = Get-ChildItem $buildDir -Directory -Filter "*_Data" | Select-Object -First 1
+            if ($fallbackDataDir) {
+              if (Test-Path $targetDataDir) {
+                Remove-Item -Recurse -Force $targetDataDir
+              }
+              Move-Item -Path $fallbackDataDir.FullName -Destination $targetDataDir -Force
+              Write-Host "Renamed $($fallbackDataDir.Name) to SolitaireExpert_Data"
+            } else {
+              Write-Warning "No *_Data folder found to normalize."
+            }
+          }
+
           Move-Item -Path $candidate.FullName -Destination $targetExe -Force
           Write-Host "Renamed $($candidate.Name) to SolitaireExpert.exe"
-
-          $expectedDataDir = Join-Path $buildDir "SolitaireExpert_Data"
-          if (Test-Path $expectedDataDir) {
-            Write-Host "Data folder already normalized."
-            exit 0
-          }
-
-          $dataCandidate = Get-ChildItem $buildDir -Directory |
-            Where-Object { $_.Name -like "*_Data" } |
-            Select-Object -First 1
-
-          if (-not $dataCandidate) {
-            throw "No Unity data folder (*_Data) found in $buildDir"
-          }
-
-          Move-Item -Path $dataCandidate.FullName -Destination $expectedDataDir -Force
-          Write-Host "Renamed $($dataCandidate.Name) to SolitaireExpert_Data"
 
       - name: Install Inno Setup
         run: choco install innosetup -y
