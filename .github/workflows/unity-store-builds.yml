@@ -3,95 +3,15 @@ name: Unity Store Builds
 on:
   workflow_dispatch:
     inputs:
-      upload_ios_to_testflight:
-        description: "Upload iOS build to TestFlight"
+      release_name:
+        description: "Release title (optional)"
         required: false
-        default: "false"
-      upload_android_to_internal:
-        description: "Upload Android AAB to Google Play internal track"
-        required: false
-        default: "false"
+        default: ""
+
+permissions:
+  contents: write
 
 jobs:
-  android:
-    name: Android AAB
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Build Android
-        uses: game-ci/unity-builder@v4
-        env:
-          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
-          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
-          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
-        with:
-          targetPlatform: Android
-          unityVersion: 6000.4.1f1
-
-      - name: Upload Android artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: android-build
-          path: build/Android
-
-      - name: Upload to Google Play internal track
-        if: ${{ github.event.inputs.upload_android_to_internal == 'true' }}
-        uses: r0adkll/upload-google-play@v1
-        with:
-          serviceAccountJsonPlainText: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
-          packageName: com.SolitaireExperts.SolitaireExpert
-          releaseFiles: build/Android/**/*.aab
-          track: internal
-          status: completed
-
-  ios:
-    name: iOS Build (macOS)
-    runs-on: macos-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Build iOS
-        uses: game-ci/unity-builder@v4
-        env:
-          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
-          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
-          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
-        with:
-          targetPlatform: iOS
-          unityVersion: 6000.4.1f1
-
-      - name: Upload iOS artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: ios-xcode-project
-          path: build/iOS
-
-      - name: Archive and export IPA
-        if: ${{ github.event.inputs.upload_ios_to_testflight == 'true' }}
-        working-directory: build/iOS
-        run: |
-          xcodebuild -project Unity-iPhone.xcodeproj -scheme Unity-iPhone -configuration Release -archivePath build/Unity-iPhone.xcarchive archive
-          xcodebuild -exportArchive -archivePath build/Unity-iPhone.xcarchive -exportPath build/export -exportOptionsPlist ../../ci/ios/ExportOptions.plist
-
-      - name: Upload IPA artifact
-        if: ${{ github.event.inputs.upload_ios_to_testflight == 'true' }}
-        uses: actions/upload-artifact@v4
-        with:
-          name: ios-ipa
-          path: build/iOS/build/export
-
-      - name: Upload to TestFlight
-        if: ${{ github.event.inputs.upload_ios_to_testflight == 'true' }}
-        uses: apple-actions/upload-testflight-build@v1
-        with:
-          app-path: build/iOS/build/export
-          issuer-id: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
-          api-key-id: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
-          api-private-key: ${{ secrets.APP_STORE_CONNECT_API_PRIVATE_KEY }}
-
   windows:
     name: Windows Standalone
     runs-on: ubuntu-latest
@@ -114,3 +34,132 @@ jobs:
         with:
           name: windows-build
           path: build/StandaloneWindows64
+
+  webgl:
+    name: WebGL Build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build WebGL
+        uses: game-ci/unity-builder@v4
+        env:
+          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+        with:
+          targetPlatform: WebGL
+          unityVersion: 6000.4.1f1
+
+      - name: Upload WebGL artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: webgl-build
+          path: build/WebGL
+
+  windows-installer:
+    name: Windows Installer
+    needs: windows
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download Windows build artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: windows-build
+          path: build/StandaloneWindows64
+
+      - name: Normalize executable name
+        shell: powershell
+        run: |
+          $buildDir = "${{ github.workspace }}\build\StandaloneWindows64"
+          $targetExe = Join-Path $buildDir "SolitaireExpert.exe"
+          $targetDataDir = Join-Path $buildDir "SolitaireExpert_Data"
+
+          $gameExe = Get-ChildItem $buildDir -Filter *.exe |
+            Where-Object { $_.Name -ne "UnityCrashHandler64.exe" } |
+            Select-Object -First 1
+          if (-not $gameExe) {
+            throw "No game executable found in $buildDir"
+          }
+
+          if ($gameExe.Name -ne "SolitaireExpert.exe") {
+            Move-Item -Path $gameExe.FullName -Destination $targetExe -Force
+            Write-Host "Renamed $($gameExe.Name) to SolitaireExpert.exe"
+            $gameExe = Get-Item $targetExe
+          } else {
+            Write-Host "Executable already normalized."
+          }
+
+          $sourceDataDir = Join-Path $buildDir ("{0}_Data" -f [System.IO.Path]::GetFileNameWithoutExtension($gameExe.Name))
+          if (Test-Path $sourceDataDir) {
+            if (Test-Path $targetDataDir) {
+              Remove-Item -Recurse -Force $targetDataDir
+            }
+            Move-Item -Path $sourceDataDir -Destination $targetDataDir -Force
+            Write-Host "Renamed $([System.IO.Path]::GetFileName($sourceDataDir)) to SolitaireExpert_Data"
+          } else {
+            $fallbackDataDir = Get-ChildItem $buildDir -Directory -Filter "*_Data" | Select-Object -First 1
+            if ($fallbackDataDir) {
+              if (Test-Path $targetDataDir) {
+                Remove-Item -Recurse -Force $targetDataDir
+              }
+              Move-Item -Path $fallbackDataDir.FullName -Destination $targetDataDir -Force
+              Write-Host "Renamed $($fallbackDataDir.Name) to SolitaireExpert_Data"
+            } else {
+              Write-Warning "No *_Data folder found to normalize."
+            }
+          }
+
+      - name: Install Inno Setup
+        run: choco install innosetup -y
+
+      - name: Build installer
+        shell: powershell
+        run: |
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          & $iscc `
+            "/DSourceDir=${{ github.workspace }}\build\StandaloneWindows64" `
+            "/DOutputDir=${{ github.workspace }}\dist" `
+            "/DMyAppVersion=1.0.${{ github.run_number }}" `
+            "${{ github.workspace }}\ci\windows\SolitaireExpert.iss"
+
+      - name: Upload Windows installer artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-installer
+          path: dist/SolitaireExpertSetup.exe
+
+  publish-release:
+    name: Publish End-User Downloads
+    needs: [windows-installer, webgl]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download Windows installer artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: windows-installer
+          path: release
+
+      - name: Download WebGL artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: webgl-build
+          path: release/webgl-build
+
+      - name: Zip WebGL build
+        run: cd release && zip -r webgl-build.zip webgl-build
+
+      - name: Publish GitHub release assets
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: build-${{ github.run_number }}
+          name: ${{ github.event.inputs.release_name || format('End-User Build {0}', github.run_number) }}
+          draft: false
+          prerelease: false
+          files: |
+            release/SolitaireExpertSetup.exe
+            release/webgl-build.zip

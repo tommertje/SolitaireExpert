@@ -1,6 +1,7 @@
 ﻿using UnityEngine;
 using System.Collections;
 using System.Linq;
+using System.Reflection;
 
 public class GameController : MonoBehaviour {
 	public GameObject[] cards;
@@ -13,6 +14,18 @@ public class GameController : MonoBehaviour {
     [SerializeField] Undo undo;
     
     [SerializeField] private NewGameScreen newGame;
+    [SerializeField] private VictoryEffectsController victoryEffects;
+    [SerializeField] private bool allowFullscreenToggle = true;
+    [SerializeField] private bool showOverlayWindowControlButtons = false;
+    [SerializeField] private float windowControlButtonWidth = 150f;
+    [SerializeField] private float windowControlButtonHeight = 42f;
+    [SerializeField] private float windowControlButtonMargin = 14f;
+    [SerializeField] private bool addWindowControlButtonsToMenu = true;
+    [SerializeField] private bool addVictoryTestButtonToMenu = true;
+    [SerializeField] private float menuWindowButtonVerticalSpacing = 1.1f;
+
+    private bool utilityButtonsAddedToMenu;
+    private bool hasPlayedVictoryEffectsThisGame;
 
     private int numberOfFinalisedKings = 0;
 
@@ -20,8 +33,200 @@ public class GameController : MonoBehaviour {
 		NewGame ();
     }
 
+    void Update()
+    {
+        TryAddWindowControlButtonsToMenu();
+
+        if (!allowFullscreenToggle)
+        {
+            return;
+        }
+
+        bool f11Pressed = Input.GetKeyDown(KeyCode.F11);
+        bool altEnterPressed = (Input.GetKeyDown(KeyCode.Return) || Input.GetKeyDown(KeyCode.KeypadEnter)) &&
+                               (Input.GetKey(KeyCode.LeftAlt) || Input.GetKey(KeyCode.RightAlt));
+
+        if (f11Pressed || altEnterPressed)
+        {
+            ToggleWindowMode();
+        }
+    }
+
+    private void OnGUI()
+    {
+        if (!allowFullscreenToggle || !showOverlayWindowControlButtons)
+        {
+            return;
+        }
+
+#if !(UNITY_STANDALONE || UNITY_EDITOR)
+        return;
+#endif
+
+        float buttonWidth = Mathf.Max(80f, windowControlButtonWidth);
+        float buttonHeight = Mathf.Max(28f, windowControlButtonHeight);
+        float margin = Mathf.Max(0f, windowControlButtonMargin);
+        float top = margin;
+        float right = Screen.width - margin - buttonWidth;
+
+        Rect maximizeRect = new Rect(right, top, buttonWidth, buttonHeight);
+        Rect restoreRect = new Rect(right, top + buttonHeight + 6f, buttonWidth, buttonHeight);
+
+        if (GUI.Button(maximizeRect, "Maximize"))
+        {
+            SetWindowMaximized();
+        }
+
+        if (GUI.Button(restoreRect, "Restore Window"))
+        {
+            SetWindowedMode();
+        }
+    }
+
+    private void TryAddWindowControlButtonsToMenu()
+    {
+        if (utilityButtonsAddedToMenu)
+        {
+            return;
+        }
+
+        if (!addWindowControlButtonsToMenu && !addVictoryTestButtonToMenu)
+        {
+            utilityButtonsAddedToMenu = true;
+            return;
+        }
+
+#if !(UNITY_STANDALONE || UNITY_EDITOR)
+        return;
+#endif
+
+        MenuButton menuButton = FindObjectOfType<MenuButton>();
+        if (menuButton == null || menuButton.transform.childCount == 0)
+        {
+            return;
+        }
+
+        Transform slider = menuButton.transform.GetChild(0);
+        Transform template = FindMenuButtonTemplate(slider);
+        if (template == null)
+        {
+            return;
+        }
+
+        int rowIndex = 1;
+        if (allowFullscreenToggle && addWindowControlButtonsToMenu)
+        {
+            CreateMenuWindowControlButton(slider, template, "Maximize", WindowModeButtonMode.Maximize, rowIndex++);
+            CreateMenuWindowControlButton(slider, template, "Restore", WindowModeButtonMode.RestoreWindow, rowIndex++);
+        }
+
+        if (addVictoryTestButtonToMenu)
+        {
+            CreateMenuWindowControlButton(slider, template, "Test Victory", WindowModeButtonMode.TestVictory, rowIndex);
+        }
+
+        utilityButtonsAddedToMenu = true;
+    }
+
+    private Transform FindMenuButtonTemplate(Transform slider)
+    {
+        for (int i = 0; i < slider.childCount; i++)
+        {
+            Transform child = slider.GetChild(i);
+            if (child.GetComponent<Collider>() != null || child.GetComponent<Collider2D>() != null)
+            {
+                return child;
+            }
+        }
+
+        if (slider.childCount == 0)
+        {
+            return null;
+        }
+
+        return slider.GetChild(0);
+    }
+
+    private void CreateMenuWindowControlButton(Transform slider, Transform template, string buttonLabel, WindowModeButtonMode mode, int rowIndex)
+    {
+        GameObject buttonObject = Instantiate(template.gameObject, slider);
+        buttonObject.name = buttonLabel + "WindowButton";
+        buttonObject.transform.localPosition = template.localPosition + new Vector3(0f, -menuWindowButtonVerticalSpacing * rowIndex, 0f);
+        buttonObject.transform.localRotation = template.localRotation;
+        buttonObject.transform.localScale = template.localScale;
+
+        MonoBehaviour[] behaviours = buttonObject.GetComponents<MonoBehaviour>();
+        for (int i = 0; i < behaviours.Length; i++)
+        {
+            if (behaviours[i] != null)
+            {
+                Destroy(behaviours[i]);
+            }
+        }
+
+        WindowModeButton windowModeButton = buttonObject.AddComponent<WindowModeButton>();
+        windowModeButton.Initialize(this, mode);
+        TrySetButtonLabel(buttonObject, buttonLabel);
+    }
+
+    private void TrySetButtonLabel(GameObject buttonObject, string buttonLabel)
+    {
+        Component[] components = buttonObject.GetComponentsInChildren<Component>(true);
+        for (int i = 0; i < components.Length; i++)
+        {
+            Component component = components[i];
+            if (component == null)
+            {
+                continue;
+            }
+
+            PropertyInfo textProperty = component.GetType().GetProperty("text");
+            if (textProperty == null || textProperty.PropertyType != typeof(string) || !textProperty.CanWrite)
+            {
+                continue;
+            }
+
+            textProperty.SetValue(component, buttonLabel, null);
+        }
+    }
+
+    public void ToggleWindowMode()
+    {
+        if (IsWindowed())
+        {
+            SetWindowMaximized();
+        }
+        else
+        {
+            SetWindowedMode();
+        }
+    }
+
+    public void SetWindowMaximized()
+    {
+        Screen.fullScreenMode = FullScreenMode.MaximizedWindow;
+        Screen.fullScreen = true;
+    }
+
+    public void SetWindowedMode()
+    {
+        Screen.fullScreenMode = FullScreenMode.Windowed;
+        Screen.fullScreen = false;
+    }
+
+    public bool IsWindowed()
+    {
+        return Screen.fullScreenMode == FullScreenMode.Windowed || !Screen.fullScreen;
+    }
+
+    public void TriggerVictoryEffectsTest()
+    {
+        PlayVictoryEffects();
+    }
+
     public void NewGame()
     {
+        hasPlayedVictoryEffectsThisGame = false;
         
 		RandomizeDeck();
 		//SetupCardsDebugMode();
@@ -177,6 +382,12 @@ public class GameController : MonoBehaviour {
 		
 		if (numberOfFinalisedKings == 8)
 		{
+            if (!hasPlayedVictoryEffectsThisGame)
+            {
+                PlayVictoryEffects();
+                hasPlayedVictoryEffectsThisGame = true;
+            }
+
 			newGame.OpenNewGameWindow(true);
 		}
 	}
@@ -188,6 +399,25 @@ public class GameController : MonoBehaviour {
 			numberOfFinalisedKings--;
 		}
 	}
+
+    private void PlayVictoryEffects()
+    {
+        if (victoryEffects == null)
+        {
+            victoryEffects = FindObjectOfType<VictoryEffectsController>();
+        }
+
+        if (victoryEffects == null)
+        {
+            GameObject effectsObject = new GameObject("VictoryEffectsController");
+            victoryEffects = effectsObject.AddComponent<VictoryEffectsController>();
+        }
+
+        if (victoryEffects != null)
+        {
+            victoryEffects.PlayVictoryCelebration();
+        }
+    }
 
 }
 	
